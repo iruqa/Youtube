@@ -1,162 +1,176 @@
 #!/usr/bin/env node
 
 /**
- * 4 Letter and Under Username Checker
- * Checks if a username is valid and available (4 characters or less)
+ * Username Generator & Checker
+ * Generates all possible 1-4 character usernames and checks availability on GitHub
  */
 
 const fetch = require('node-fetch');
+const fs = require('fs');
+const path = require('path');
 
-// Username validation rules
-const RULES = {
-  maxLength: 4,
-  minLength: 1,
-  validChars: /^[a-z0-9-]+$/i,
-  noConsecutiveDashes: /--/,
-  noStartOrEndDash: /^-|-$/,
-};
+const VALID_CHARS = 'abcdefghijklmnopqrstuvwxyz0123456789';
+const MAX_LENGTH = 4;
+const OUTPUT_FILE = 'available-usernames.json';
+const LOG_FILE = 'checker-progress.log';
+
+let checkedCount = 0;
+let availableCount = 0;
+const availableUsernames = [];
 
 /**
- * Validates username format
- * @param {string} username - The username to validate
- * @returns {object} - Validation result with status and message
+ * Generate all possible usernames from 1 to MAX_LENGTH characters
  */
-function validateFormat(username) {
-  if (!username || typeof username !== 'string') {
-    return { valid: false, message: 'Username must be a non-empty string' };
+function* generateUsernames() {
+  for (let length = 1; length <= MAX_LENGTH; length++) {
+    yield* generateOfLength(length);
   }
-
-  const trimmed = username.trim();
-
-  if (trimmed.length > RULES.maxLength) {
-    return { valid: false, message: `Username must be ${RULES.maxLength} characters or less` };
-  }
-
-  if (trimmed.length < RULES.minLength) {
-    return { valid: false, message: `Username must be at least ${RULES.minLength} character` };
-  }
-
-  if (!RULES.validChars.test(trimmed)) {
-    return { valid: false, message: 'Username can only contain letters, numbers, and hyphens' };
-  }
-
-  if (RULES.noConsecutiveDashes.test(trimmed)) {
-    return { valid: false, message: 'Username cannot contain consecutive dashes' };
-  }
-
-  if (RULES.noStartOrEndDash.test(trimmed)) {
-    return { valid: false, message: 'Username cannot start or end with a dash' };
-  }
-
-  return { valid: true, message: 'Format is valid' };
 }
 
 /**
- * Checks if username is available on GitHub
- * @param {string} username - The username to check
- * @returns {Promise<object>} - Availability result
+ * Generate all combinations of a specific length
  */
-async function checkGitHubAvailability(username) {
+function* generateOfLength(length) {
+  const indices = new Array(length).fill(0);
+  
+  while (true) {
+    yield indices.map(i => VALID_CHARS[i]).join('');
+    
+    // Increment indices
+    let pos = length - 1;
+    while (pos >= 0) {
+      indices[pos]++;
+      if (indices[pos] < VALID_CHARS.length) {
+        break;
+      }
+      indices[pos] = 0;
+      pos--;
+    }
+    
+    // If we've cycled through all, we're done
+    if (pos < 0) break;
+  }
+}
+
+/**
+ * Check if username is available on GitHub
+ */
+async function isAvailable(username) {
   try {
     const response = await fetch(`https://api.github.com/users/${username}`);
-    
-    if (response.status === 404) {
-      return { available: true, message: 'Username is available on GitHub' };
-    } else if (response.status === 200) {
-      return { available: false, message: 'Username is taken on GitHub' };
-    } else {
-      return { available: null, message: 'Could not check GitHub availability' };
-    }
+    return response.status === 404;
   } catch (error) {
-    return { available: null, message: `Error checking GitHub: ${error.message}` };
+    console.error(`Error checking ${username}:`, error.message);
+    return null;
   }
 }
 
 /**
- * Complete username checker
- * @param {string} username - The username to check
- * @param {boolean} checkGitHub - Whether to check GitHub availability (default: true)
- * @returns {Promise<object>} - Complete check result
+ * Log progress to file
  */
-async function checkUsername(username, checkGitHub = true) {
-  const formatCheck = validateFormat(username);
+function logProgress(message) {
+  const timestamp = new Date().toISOString();
+  const logMessage = `[${timestamp}] ${message}`;
+  console.log(logMessage);
+  fs.appendFileSync(LOG_FILE, logMessage + '\n');
+}
 
-  const result = {
-    username: username?.trim() || '',
-    formatValid: formatCheck.valid,
-    formatMessage: formatCheck.message,
-    githubAvailable: null,
-    githubMessage: null,
+/**
+ * Save results to file
+ */
+function saveResults() {
+  const data = {
+    timestamp: new Date().toISOString(),
+    totalChecked: checkedCount,
+    availableCount: availableCount,
+    availableUsernames: availableUsernames.sort(),
   };
+  
+  fs.writeFileSync(OUTPUT_FILE, JSON.stringify(data, null, 2));
+  logProgress(`Results saved to ${OUTPUT_FILE}`);
+}
 
-  if (formatCheck.valid && checkGitHub) {
-    const gitHubCheck = await checkGitHubAvailability(username.trim());
-    result.githubAvailable = gitHubCheck.available;
-    result.githubMessage = gitHubCheck.message;
+/**
+ * Main checker function
+ */
+async function main() {
+  logProgress('='.repeat(60));
+  logProgress('Starting username auto-checker...');
+  logProgress(`Will check all 1-${MAX_LENGTH} character combinations`);
+  logProgress('This may take a while due to GitHub API rate limiting...');
+  logProgress('='.repeat(60));
+  
+  const generator = generateUsernames();
+  const DELAY_MS = 100; // Delay between requests to avoid rate limiting
+  const CHECK_INTERVAL = 100; // Save progress every N checks
+  
+  for (const username of generator) {
+    try {
+      const available = await isAvailable(username);
+      checkedCount++;
+      
+      if (available) {
+        availableUsernames.push(username);
+        availableCount++;
+        logProgress(`✓ AVAILABLE: ${username}`);
+      }
+      
+      // Show progress every CHECK_INTERVAL checks
+      if (checkedCount % CHECK_INTERVAL === 0) {
+        logProgress(`Progress: ${checkedCount} checked, ${availableCount} available`);
+      }
+      
+      // Delay to avoid rate limiting
+      await new Promise(resolve => setTimeout(resolve, DELAY_MS));
+      
+    } catch (error) {
+      logProgress(`Error processing ${username}: ${error.message}`);
+    }
   }
-
-  return result;
+  
+  logProgress('='.repeat(60));
+  logProgress('Checking complete!');
+  logProgress(`Total checked: ${checkedCount}`);
+  logProgress(`Available usernames found: ${availableCount}`);
+  logProgress('='.repeat(60));
+  
+  saveResults();
+  
+  if (availableUsernames.length > 0) {
+    console.log('\n📋 Available Usernames:');
+    availableUsernames.sort().forEach(u => console.log(`  - ${u}`));
+  }
 }
 
 /**
  * CLI Handler
  */
-async function main() {
+async function handleCLI() {
   const args = process.argv.slice(2);
-
-  if (args.length === 0) {
-    console.log('Usage: node username-checker.js <command> [options]');
+  
+  if (args.length === 0 || args[0] === 'start') {
+    await main();
+  } else if (args[0] === 'help') {
+    console.log('Usage: node username-checker.js [command]');
     console.log('');
     console.log('Commands:');
-    console.log('  check <username>          Check username format and GitHub availability');
-    console.log('  format <username>         Check only format validity');
-    console.log('  github <username>         Check only GitHub availability');
+    console.log('  start              Start auto-checking all usernames (default)');
+    console.log('  help               Show this help message');
     console.log('');
-    console.log('Examples:');
-    console.log('  node username-checker.js check abc');
-    console.log('  node username-checker.js format test123');
-    console.log('  node username-checker.js github x');
-    process.exit(0);
-  }
-
-  const command = args[0];
-  const username = args[1];
-
-  if (!username) {
-    console.error('Error: Username is required');
-    process.exit(1);
-  }
-
-  try {
-    if (command === 'check') {
-      const result = await checkUsername(username);
-      console.log(JSON.stringify(result, null, 2));
-    } else if (command === 'format') {
-      const result = validateFormat(username);
-      console.log(JSON.stringify(result, null, 2));
-    } else if (command === 'github') {
-      const result = await checkGitHubAvailability(username);
-      console.log(JSON.stringify(result, null, 2));
-    } else {
-      console.error(`Unknown command: ${command}`);
-      console.error('Use: check, format, or github');
-      process.exit(1);
-    }
-  } catch (error) {
-    console.error('Error:', error.message);
-    process.exit(1);
+    console.log('Output files:');
+    console.log(`  ${OUTPUT_FILE}        Available usernames (JSON format)`);
+    console.log(`  ${LOG_FILE}           Detailed progress log`);
+  } else {
+    console.error(`Unknown command: ${args[0]}`);
+    console.error('Use "help" for available commands');
   }
 }
 
-// Export functions for use as module
-module.exports = {
-  validateFormat,
-  checkGitHubAvailability,
-  checkUsername,
-  RULES,
-};
-
-// Run CLI if executed directly
 if (require.main === module) {
-  main();
+  handleCLI();
 }
+
+module.exports = {
+  generateUsernames,
+  isAvailable,
+};
