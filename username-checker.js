@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 /**
  * 4 Letter and Under Username Checker
  * Checks if a username is valid and available (4 characters or less)
@@ -96,9 +98,65 @@ async function checkUsername(username, checkGitHub = true) {
   return result;
 }
 
+/**
+ * CLI Handler
+ */
+async function main() {
+  const args = process.argv.slice(2);
+
+  if (args.length === 0) {
+    console.log('Usage: node username-checker.js <command> [options]');
+    console.log('');
+    console.log('Commands:');
+    console.log('  check <username>          Check username format and GitHub availability');
+    console.log('  format <username>         Check only format validity');
+    console.log('  github <username>         Check only GitHub availability');
+    console.log('');
+    console.log('Examples:');
+    console.log('  node username-checker.js check abc');
+    console.log('  node username-checker.js format test123');
+    console.log('  node username-checker.js github x');
+    process.exit(0);
+  }
+
+  const command = args[0];
+  const username = args[1];
+
+  if (!username) {
+    console.error('Error: Username is required');
+    process.exit(1);
+  }
+
+  try {
+    if (command === 'check') {
+      const result = await checkUsername(username);
+      console.log(JSON.stringify(result, null, 2));
+    } else if (command === 'format') {
+      const result = validateFormat(username);
+      console.log(JSON.stringify(result, null, 2));
+    } else if (command === 'github') {
+      const result = await checkGitHubAvailability(username);
+      console.log(JSON.stringify(result, null, 2));
+    } else {
+      console.error(`Unknown command: ${command}`);
+      console.error('Use: check, format, or github');
+      process.exit(1);
+    }
+  } catch (error) {
+    console.error('Error:', error.message);
+    process.exit(1);
+  }
+}
+
+// Export functions for use as module
 module.exports = {
   validateFormat,
   checkGitHubAvailability,
   checkUsername,
   RULES,
 };
+
+// Run CLI if executed directly
+if (require.main === module) {
+  main();
+}
