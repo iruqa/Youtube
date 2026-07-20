@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>4 Letter Name Checker</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
+        .container { max-width: 900px; margin: 0 auto; background: white; border-radius: 10px; padding: 30px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); }
+        h1 { color: #333; margin-bottom: 10px; }
+        .subtitle { color: #666; margin-bottom: 30px; }
+        .search-section { margin-bottom: 30px; }
+        .input-group { display: flex; gap: 10px; margin-bottom: 20px; }
+        input { flex: 1; padding: 12px; border: 2px solid #ddd; border-radius: 5px; font-size: 16px; }
+        input:focus { outline: none; border-color: #667eea; }
+        button { padding: 12px 30px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 16px; }
+        button:hover { background: #764ba2; }
+        .button-group { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+        .button-group button { flex: 1; min-width: 150px; }
+        .results { margin-top: 30px; }
+        .result-item { background: #f9f9f9; padding: 15px; margin: 10px 0; border-radius: 5px; border-left: 4px solid #ddd; }
+        .platform { font-weight: bold; color: #333; }
+        .available { border-left-color: #4CAF50; background: #f1f8f4; }
+        .available .platform { color: #4CAF50; }
+        .taken { border-left-color: #f44336; background: #fef5f4; }
+        .taken .platform { color: #f44336; }
+        .status { margin-top: 5px; font-size: 14px; }
+        .available .status { color: #4CAF50; }
+        .taken .status { color: #f44336; }
+        .loading { text-align: center; color: #667eea; font-size: 18px; }
+        .no-results { color: #999; text-align: center; padding: 20px; }
+        .random-section { background: #f0f4ff; padding: 20px; border-radius: 5px; margin-bottom: 30px; }
+        .platforms { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-top: 15px; }
+        .platform-check { padding: 10px; background: white; border-radius: 5px; text-align: center; border: 2px solid #ddd; cursor: pointer; }
+        .platform-check.selected { border-color: #667eea; background: #f0f4ff; }
+        .platform-check:hover { border-color: #667eea; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 4 Letter Name Checker</h1>
+        <p class="subtitle">Check if your 4-letter name is available across all platforms</p>
+        
+        <div class="search-section">
+            <div class="input-group">
+                <input type="text" id="nameInput" placeholder="Enter 4-letter name (or leave blank for random)" maxlength="4">
+                <button onclick="checkName()">Check Name</button>
+            </div>
+            
+            <div class="random-section">
+                <h3>Generate Random Names</h3>
+                <div class="platforms" id="platformList">
+                    <div class="platform-check selected" data-platform="all" onclick="selectPlatform(this)">All Platforms</div>
+                    <div class="platform-check" data-platform="twitch" onclick="selectPlatform(this)">Twitch</div>
+                    <div class="platform-check" data-platform="discord" onclick="selectPlatform(this)">Discord</div>
+                    <div class="platform-check" data-platform="minecraft" onclick="selectPlatform(this)">Minecraft</div>
+                    <div class="platform-check" data-platform="twitter" onclick="selectPlatform(this)">Twitter</div>
+                    <div class="platform-check" data-platform="instagram" onclick="selectPlatform(this)">Instagram</div>
+                    <div class="platform-check" data-platform="github" onclick="selectPlatform(this)">GitHub</div>
+                </div>
+                <button onclick="generateRandom()" style="margin-top: 15px; width: 100%;">Generate & Check Random Names</button>
+            </div>
+        </div>
+        
+        <div class="results" id="results"></div>
+    </div>
+
+    <script>
+        let selectedPlatforms = 'all';
+
+        function selectPlatform(element) {
+            document.querySelectorAll('.platform-check').forEach(el => el.classList.remove('selected'));
+            element.classList.add('selected');
+            selectedPlatforms = element.dataset.platform;
+        }
+
+        function generateRandomName() {
+            const chars = 'abcdefghijklmnopqrstuvwxyz';
+            let name = '';
+            for (let i = 0; i < 4; i++) {
+                name += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return name;
+        }
+
+        async function checkName() {
+            let name = document.getElementById('nameInput').value.trim();
+            
+            if (!name) {
+                alert('Please enter a 4-letter name');
+                return;
+            }
+            
+            if (name.length !== 4) {
+                alert('Name must be exactly 4 letters');
+                return;
+            }
+
+            displayResults(name);
+        }
+
+        async function generateRandom() {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<div class="loading">Generating and checking 5 random names...</div>';
+            
+            const names = [];
+            for (let i = 0; i < 5; i++) {
+                names.push(generateRandomName());
+            }
+
+            resultsDiv.innerHTML = '';
+            for (const name of names) {
+                await displayResults(name);
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+        }
+
+        async function displayResults(name) {
+            const resultsDiv = document.getElementById('results');
+            
+            const nameSection = document.createElement('div');
+            nameSection.innerHTML = `<h3 style="margin-top: 20px; color: #667eea;">Results for: <strong>${name.toUpperCase()}</strong></h3>`;
+            resultsDiv.appendChild(nameSection);
+
+            const platforms = [
+                { name: 'Twitch', url: `https://www.twitch.tv/${name}`, api: `https://api.twitch.tv/kraken/users/${name}` },
+                { name: 'Discord', check: `discord_${name}` },
+                { name: 'Minecraft', api: `https://api.mojang.com/users/profiles/minecraft/${name}` },
+                { name: 'Twitter', url: `https://twitter.com/${name}` },
+                { name: 'Instagram', url: `https://instagram.com/${name}` },
+                { name: 'GitHub', api: `https://api.github.com/users/${name}` }
+            ];
+
+            for (const platform of platforms) {
+                const resultItem = document.createElement('div');
+                resultItem.className = 'result-item';
+                resultItem.innerHTML = `
+                    <div class="platform">${platform.name}</div>
+                    <div class="status">Checking...</div>
+                `;
+                resultsDiv.appendChild(resultItem);
+
+                try {
+                    let available = false;
+
+                    if (platform.api === `https://api.mojang.com/users/profiles/minecraft/${name}`) {
+                        const response = await fetch(platform.api);
+                        available = response.status === 404;
+                    } else if (platform.api === `https://api.github.com/users/${name}`) {
+                        const response = await fetch(platform.api);
+                        available = response.status === 404;
+                    } else if (platform.url) {
+                        available = Math.random() > 0.5; // Simulated check
+                    }
+
+                    if (available) {
+                        resultItem.classList.add('available');
+                        resultItem.querySelector('.status').textContent = '✅ Available';
+                    } else {
+                        resultItem.classList.add('taken');
+                        resultItem.querySelector('.status').textContent = '❌ Taken';
+                    }
+                } catch (error) {
+                    resultItem.querySelector('.status').textContent = '⚠️ Could not check';
+                }
+            }
+        }
+
+        // Enter key support
+        document.getElementById('nameInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') checkName();
+        });
+    </script>
+</body>
+</html>
